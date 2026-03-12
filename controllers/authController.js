@@ -2,7 +2,10 @@ const User = require("../models/User");
 const crypto = require("crypto");
 const sendEmail = require("../utils/sendEmail");
 
+const generateToken = require("../utils/generateToken");
+
 exports.loginUser = async (req, res) => {
+
   try {
 
     const { email, password } = req.body;
@@ -21,6 +24,9 @@ exports.loginUser = async (req, res) => {
 
     res.json({
       success: true,
+
+      token: generateToken(user._id),   
+
       user: {
         id: user._id,
         fullName: user.fullName,
@@ -28,11 +34,17 @@ exports.loginUser = async (req, res) => {
         role: user.role?.name,
         image: user.image
       }
+
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+
+    res.status(500).json({
+      message: error.message
+    });
+
   }
+
 };
 
 exports.forgotPassword = async (req, res) => {

@@ -5,8 +5,10 @@ const protect = async (req, res, next) => {
 
   let token;
 
-  if (req.headers.authorization &&
-      req.headers.authorization.startsWith("Bearer")) {
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith("Bearer")
+  ) {
 
     try {
 
@@ -19,15 +21,15 @@ const protect = async (req, res, next) => {
       next();
 
     } catch (error) {
-      return res.status(401).json({ message: "Not authorized" });
+      res.status(401).json({ message: "Not authorized" });
     }
 
   }
 
   if (!token) {
-    return res.status(401).json({ message: "No token provided" });
+    res.status(401).json({ message: "No token" });
   }
 
 };
 
-module.exports = protect;
+module.exports = { protect };

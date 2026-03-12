@@ -4,6 +4,8 @@ const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 const userController = require("../controllers/userController");
+const { protect } = require("../middleware/authMiddleware");
+const { getUsers } = require("../controllers/userController");
 
 const uploadPath = path.join(__dirname, "../uploads");
 
@@ -23,6 +25,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 router.get("/", userController.getUsers);
+router.get("/", protect, getUsers);
 router.post("/", upload.single("image"), userController.createUser);
 router.put("/:id", upload.single("image"), userController.updateUser);
 router.delete("/:id", userController.deleteUser);
