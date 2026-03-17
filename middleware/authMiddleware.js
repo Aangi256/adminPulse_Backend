@@ -3,14 +3,14 @@ const User = require("../models/User");
 
 const protect = async (req, res, next) => {
 
-  let token;
+  try {
 
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
+    let token;
 
-    try {
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    ) {
 
       token = req.headers.authorization.split(" ")[1];
 
@@ -18,16 +18,20 @@ const protect = async (req, res, next) => {
 
       req.user = await User.findById(decoded.id).select("-password");
 
-      next();
+      return next();
 
-    } catch (error) {
-      res.status(401).json({ message: "Not authorized" });
     }
 
-  }
+    return res.status(401).json({
+      message: "No token, authorization denied"
+    });
 
-  if (!token) {
-    res.status(401).json({ message: "No token" });
+  } catch (error) {
+
+    return res.status(401).json({
+      message: "Token is not valid"
+    });
+
   }
 
 };

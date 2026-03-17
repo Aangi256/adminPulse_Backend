@@ -25,10 +25,10 @@ exports.loginUser = async (req, res) => {
     res.json({
       success: true,
 
-      token: generateToken(user._id),   
+      token: generateToken(user._id),
 
       user: {
-        id: user._id,
+        _id: user._id,
         fullName: user.fullName,
         email: user.email,
         role: user.role?.name,

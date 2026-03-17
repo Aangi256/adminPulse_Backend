@@ -26,7 +26,7 @@ const startServer = async () => {
     await connectDB();
     await seedRoles();
     await createAdmin();
-
+ 
     const PORT = process.env.NODE_PORT || 5000;
     app.use("/api/v1/roles", roleRoutes);
     app.use("/api/v1/users", userRoutes);

@@ -3,9 +3,9 @@ const router = express.Router();
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
+
 const userController = require("../controllers/userController");
 const { protect } = require("../middleware/authMiddleware");
-const { getUsers } = require("../controllers/userController");
 
 const uploadPath = path.join(__dirname, "../uploads");
 
@@ -15,7 +15,7 @@ if (!fs.existsSync(uploadPath)) {
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, uploadPath); 
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
     cb(null, Date.now() + "-" + file.originalname);
@@ -23,12 +23,10 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
-
-router.get("/", userController.getUsers);
-router.get("/", protect, getUsers);
-router.post("/", upload.single("image"), userController.createUser);
-router.put("/:id", upload.single("image"), userController.updateUser);
-router.delete("/:id", userController.deleteUser);
-
-
+router.get("/", protect, userController.getUsers);
+router.get("/:id", protect, userController.getUser);
+router.post("/", protect, upload.single("image"), userController.createUser);
+router.put("/:id", protect, upload.single("image"), userController.updateUser);
+router.delete("/:id", protect, userController.deleteUser);
+router.put("/update-password/:id", protect, userController.updateUserPassword);
 module.exports = router;
