@@ -14,6 +14,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const customerRoutes = require("./routes/customerRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const chatRoutes = require("./routes/chatRoutes");
+const jobRoutes = require("./routes/jobRoutes");
 
 const app = express();
 
@@ -26,6 +27,7 @@ console.log({
   customerRoutes,
   messageRoutes,
   chatRoutes,
+  jobRoutes,
 });
 
 app.use(cors());
@@ -40,6 +42,7 @@ app.use("/api/v1/customers", customerRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/message", messageRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/jobs", require("./routes/jobRoutes"));
 
 const startServer = async () => {
   try {

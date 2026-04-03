@@ -30,9 +30,9 @@ const userSchema = new mongoose.Schema(
       required: true
     },
     role: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Role",
-      required: true
+      type: String,
+      enum: ["admin", "user"],
+      default: "user",
     },
     status: {
       type: String,
