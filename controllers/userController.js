@@ -6,14 +6,18 @@ const bcrypt = require("bcryptjs");
 exports.getUsers = async (req, res) => {
   try {
 
-    const users = await User.find().select("-password").populate("role");
-    
+    const users = await User.find()
+      .select("-password")
+      .populate("role", "name");
+
     res.status(200).json({
       success: true,
       users
     });
 
   } catch (error) {
+
+    console.error("GET USERS ERROR:", error);
 
     res.status(500).json({
       success: false,
@@ -122,11 +126,11 @@ exports.updateUser = async (req, res) => {
       updateData.image = req.file.filename;
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    ).populate("role");
+   const updatedUser = await User.findByIdAndUpdate(
+  req.params.id,
+  updateData,
+  { new: true }
+).populate("role", "name");
 
     res.status(200).json({
       success: true,

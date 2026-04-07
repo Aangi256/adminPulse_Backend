@@ -7,11 +7,8 @@ const roleMiddleware = (requiredRole) => {
         });
       }
 
-      // 🔥 HANDLE BOTH CASES
-      const userRole =
-        typeof req.user.role === "object"
-          ? req.user.role.name
-          : req.user.role;
+      // ✅ HANDLE OBJECT ROLE ONLY (clean)
+      const userRole = req.user.role.name;
 
       console.log("USER ROLE:", userRole);
       console.log("REQUIRED ROLE:", requiredRole);

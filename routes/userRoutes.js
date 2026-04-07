@@ -34,14 +34,17 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-router.get("/", protect,roleMiddleware("admin"), getUsers);
+router.get("/", protect, roleMiddleware("admin"), getUsers);
 
-router.get("/search", protect,roleMiddleware("admin"), searchUsers);
+router.get("/search", protect, roleMiddleware("admin"), searchUsers);
 
 router.get("/:id", protect, getUser);
-router.post("/", protect,roleMiddleware("admin"), upload.single("image"), createUser);
-router.put("/:id", protect,roleMiddleware("admin"), upload.single("image"), updateUser);
-router.delete("/:id", protect,roleMiddleware("admin"), deleteUser);
-router.put("/update-password/:id",roleMiddleware("admin"), protect, updateUserPassword);
 
+router.post("/", protect, roleMiddleware("admin"), upload.single("image"), createUser);
+
+router.put("/:id", protect, roleMiddleware("admin"), upload.single("image"), updateUser);
+
+router.delete("/:id", protect, roleMiddleware("admin"), deleteUser);
+
+router.put("/update-password/:id", protect, roleMiddleware("admin"), updateUserPassword);
 module.exports = router;
