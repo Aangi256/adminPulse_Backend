@@ -17,8 +17,6 @@ exports.getUsers = async (req, res) => {
 
   } catch (error) {
 
-    console.error("GET USERS ERROR:", error);
-
     res.status(500).json({
       success: false,
       message: error.message
@@ -62,29 +60,34 @@ exports.getUser = async (req, res) => {
 // CREATE USER
 exports.createUser = async (req, res) => {
   try {
-    const { fullName, age, email, country, password, role, status } = req.body;
+    const { fullName, age, email, country, role, status } = req.body;
 
-    // Hash password before saving
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    // ✅ default password
+    const defaultPassword = "123456";
 
     const user = new User({
       fullName,
       age,
       email,
       country,
-      password: hashedPassword,
       role,
       status,
+      password: defaultPassword, // ✅ FIX
       image: req.file ? req.file.filename : ""
     });
 
     await user.save();
 
-    res.status(201).json(user);
+    res.status(201).json({
+      success: true,
+      message: "User created with default password (123456)",
+      user
+    });
 
   } catch (error) {
+    console.error("CREATE USER ERROR:", error);
     res.status(500).json({
+      success: false,
       message: error.message
     });
   }
@@ -126,11 +129,11 @@ exports.updateUser = async (req, res) => {
       updateData.image = req.file.filename;
     }
 
-   const updatedUser = await User.findByIdAndUpdate(
-  req.params.id,
-  updateData,
-  { new: true }
-).populate("role", "name");
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    ).populate("role", "name");
 
     res.status(200).json({
       success: true,
@@ -187,15 +190,15 @@ exports.searchUsers = async (req, res) => {
   try {
     const keyword = req.query.search
       ? {
-          fullName: { $regex: req.query.search, $options: "i" },
-        }
+        fullName: { $regex: req.query.search, $options: "i" },
+      }
       : {};
 
     const users = await User.find(keyword)
       .find({ _id: { $ne: req.user._id } })
       .select("-password");
 
-    res.json(users); 
+    res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
