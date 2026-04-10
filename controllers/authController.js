@@ -5,9 +5,7 @@ const sendEmail = require("../utils/sendEmail");
 const generateToken = require("../utils/generateToken");
 
 exports.loginUser = async (req, res) => {
-
   try {
-
     const { email, password } = req.body;
 
     const user = await User.findOne({ email }).populate("role");
@@ -24,27 +22,24 @@ exports.loginUser = async (req, res) => {
 
     res.json({
       success: true,
-
       token: generateToken(user._id),
-
       user: {
         _id: user._id,
         fullName: user.fullName,
         email: user.email,
-        role: user.role?.name,
+        role: {
+          _id: user.role?._id,
+          name: user.role?.name
+        },
         image: user.image
       }
-
     });
 
   } catch (error) {
-
     res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
 exports.forgotPassword = async (req, res) => {

@@ -11,11 +11,15 @@ const {
   updateUser,
   deleteUser,
   updateUserPassword,
-  searchUsers
+  searchUsers,
+  updateMyProfile,
+  changeMyPassword
 } = require("../controllers/userController");
 
 const { protect } = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
+
+/* ================= FILE UPLOAD SETUP ================= */
 
 const uploadPath = path.join(__dirname, "../uploads");
 
@@ -34,17 +38,39 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-router.get("/", protect, roleMiddleware("admin"), getUsers);
+/* ================= USER SELF ROUTES (VERY IMPORTANT FIRST) ================= */
 
-router.get("/search", protect, roleMiddleware("admin"), searchUsers);
+// ✅ Update own profile
+router.put("/me/update", protect, upload.single("image"), updateMyProfile);
 
+// ✅ Change own password
+router.put("/me/change-password", protect, changeMyPassword);
+
+
+/* ================= OTHER USER ROUTES ================= */
+
+// ✅ Search users
+router.get("/search", protect, searchUsers);
+
+// ✅ Get single user by ID
 router.get("/:id", protect, getUser);
 
+
+/* ================= ADMIN ROUTES ================= */
+
+// ✅ Get all users
+router.get("/", protect, roleMiddleware("admin"), getUsers);
+
+// ✅ Create user
 router.post("/", protect, roleMiddleware("admin"), upload.single("image"), createUser);
 
+// ✅ Update user by ID (admin)
 router.put("/:id", protect, roleMiddleware("admin"), upload.single("image"), updateUser);
 
+// ✅ Delete user
 router.delete("/:id", protect, roleMiddleware("admin"), deleteUser);
 
+// ✅ Admin change password
 router.put("/update-password/:id", protect, roleMiddleware("admin"), updateUserPassword);
+
 module.exports = router;
