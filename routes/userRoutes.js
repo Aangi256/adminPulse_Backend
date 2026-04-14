@@ -13,7 +13,7 @@ const {
   updateUserPassword,
   searchUsers,
   updateMyProfile,
-  changeMyPassword
+  changeMyPassword,
 } = require("../controllers/userController");
 
 const { protect } = require("../middleware/authMiddleware");

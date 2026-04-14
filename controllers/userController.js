@@ -14,6 +14,7 @@ exports.getUsers = async (req, res) => {
   }
 };
 
+
 /* ================= GET SINGLE USER ================= */
 exports.getUser = async (req, res) => {
   try {
