@@ -55,27 +55,20 @@ const startServer = async () => {
         credentials: true,
       },
     });
-
-    // Track online users: userId -> socketId
     const onlineUsers = new Map();
-
+    
     io.on("connection", (socket) => {
       console.log("🔌 Socket connected:", socket.id);
-
-      // ── 1. USER SETUP
-      // Frontend: socket.emit("setup", loggedInUserId)
       socket.on("setup", (userId) => {
         if (!userId) return;
         onlineUsers.set(userId.toString(), socket.id);
-        socket.join(userId.toString()); // personal room for private messages
+        socket.join(userId.toString()); 
         socket.emit("connected");
-        // Broadcast updated online list to ALL clients
         io.emit("online users", Array.from(onlineUsers.keys()));
         console.log(`👤 User online: ${userId}`);
       });
 
-      // ── 2. JOIN CHAT ROOM
-      // Frontend: socket.emit("join chat", chatId)
+
       socket.on("join chat", (chatId) => {
         socket.join(chatId);
         console.log(`🏠 Joined chat room: ${chatId}`);
