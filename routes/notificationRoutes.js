@@ -1,14 +1,16 @@
 const express = require("express");
 const router = express.Router();
 
+// ✅ IMPORT CORRECTLY
 const {
   getNotifications,
-  createNotification,
-  markAllRead,
+  markNotificationRead,
 } = require("../controllers/notificationController");
 
+// ✅ ROUTES
 router.get("/", getNotifications);
-router.post("/", createNotification);
-router.put("/read-all", markAllRead);
+
+// 🔥 IMPORTANT FIX HERE
+router.put("/:id", markNotificationRead);
 
 module.exports = router;

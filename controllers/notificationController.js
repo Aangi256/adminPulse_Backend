@@ -1,32 +1,25 @@
 const Notification = require("../models/Notification");
 
-// GET notifications
-exports.getNotifications = async (req, res) => {
-  try {
-    const notifications = await Notification.find().sort({
-      createdAt: -1,
-    });
-
-    res.json(notifications);
-  } catch (error) {
-    res.status(500).json({ message: "Server Error" });
-  }
+// ✅ GET notifications
+const getNotifications = async (req, res) => {
+  const notifications = await Notification.find().sort({ createdAt: -1 });
+  res.json(notifications);
 };
 
-// CREATE notification (manual)
-exports.createNotification = async (req, res) => {
-  try {
-    const { user, message, project, image } = req.body;
+// ✅ MARK AS READ
+const markNotificationRead = async (req, res) => {
+  const { id } = req.params;
 
-    const notification = await Notification.create({
-      user,
-      message,
-      project,
-      image,
-    });
+  const notification = await Notification.findByIdAndUpdate(
+    id,
+    { read: true },
+    { new: true }
+  );
 
-    res.status(201).json(notification);
-  } catch (error) {
-    res.status(500).json({ message: "Server Error" });
-  }
+  res.json(notification);
+};
+
+module.exports = {
+  getNotifications,
+  markNotificationRead,
 };
