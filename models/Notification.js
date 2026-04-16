@@ -2,20 +2,12 @@ const mongoose = require("mongoose");
 
 const notificationSchema = new mongoose.Schema(
   {
-    user: {
-      type: String,
-      required: true,
-    },
-    message: {
-      type: String,
-      required: true,
-    },
-    project: {
-      type: String,
-    },
+    user: String,
+    message: String,
+    project: String,
     type: {
       type: String,
-      default: "Project",
+      default: "chat",
     },
     image: {
       type: String,

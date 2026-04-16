@@ -1,9 +1,11 @@
 const Notification = require("../models/Notification");
 
-// Get all notifications
+// GET notifications
 exports.getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find().sort({ createdAt: -1 });
+    const notifications = await Notification.find().sort({
+      createdAt: -1,
+    });
 
     res.json(notifications);
   } catch (error) {
@@ -11,19 +13,17 @@ exports.getNotifications = async (req, res) => {
   }
 };
 
-// Create notification
+// CREATE notification (manual)
 exports.createNotification = async (req, res) => {
   try {
     const { user, message, project, image } = req.body;
 
-    const notification = new Notification({
+    const notification = await Notification.create({
       user,
       message,
       project,
       image,
     });
-
-    await notification.save();
 
     res.status(201).json(notification);
   } catch (error) {

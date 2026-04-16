@@ -43,78 +43,76 @@ const startServer = async () => {
     const http = require("http");
     const server = http.createServer(app);
 
-    // ─────────────────────────────────────────────
-    // SOCKET.IO SETUP (PRODUCTION-GRADE)
-    // ─────────────────────────────────────────────
     const { Server } = require("socket.io");
     const io = new Server(server, {
       pingTimeout: 60000,
       cors: {
         origin: "http://localhost:3000",
-        methods: ["GET", "POST"],
         credentials: true,
       },
     });
+
     const onlineUsers = new Map();
-    
+
     io.on("connection", (socket) => {
       console.log("🔌 Socket connected:", socket.id);
+
       socket.on("setup", (userId) => {
         if (!userId) return;
+
         onlineUsers.set(userId.toString(), socket.id);
-        socket.join(userId.toString()); 
+        socket.join(userId.toString());
+
         socket.emit("connected");
         io.emit("online users", Array.from(onlineUsers.keys()));
-        console.log(`👤 User online: ${userId}`);
       });
-
 
       socket.on("join chat", (chatId) => {
         socket.join(chatId);
-        console.log(`🏠 Joined chat room: ${chatId}`);
       });
 
-      // ── 3. NEW MESSAGE (Real-time delivery)
-      // Frontend: socket.emit("new message", populatedMessage)
-      socket.on("new message", (newMessage) => {
+      // ✅ UPDATED MESSAGE + NOTIFICATION LOGIC
+      socket.on("new message", async (newMessage) => {
         const chat = newMessage?.chat;
         if (!chat?.users) return;
 
-        chat.users.forEach((user) => {
+        const Notification = require("./models/Notification");
+
+        for (const user of chat.users) {
           const uid = (user._id || user).toString();
           const senderId = newMessage.sender?._id?.toString();
-          if (uid === senderId) return; // don't send back to sender
-          // Emit to the recipient's personal room
+
+          if (uid === senderId) continue;
+
+          // ✅ Send message
           socket.to(uid).emit("message received", newMessage);
-        });
+
+          try {
+            // ✅ Save notification
+            const notif = await Notification.create({
+              user: newMessage.sender?.name || "User",
+              message: newMessage.content,
+              project: "Chat Message",
+              type: "chat",
+              image: newMessage.sender?.avatar || "/default-user.png",
+            });
+
+            // ✅ Emit notification
+            socket.to(uid).emit("new notification", notif);
+          } catch (err) {
+            console.error("Notification error:", err.message);
+          }
+        }
       });
 
-      // ── 4. TYPING INDICATORS
-      // Frontend: socket.emit("typing", { chatId, userId, userName })
-      socket.on("typing", ({ chatId, userId, userName }) => {
-        socket.to(chatId).emit("typing", { chatId, userId, userName });
-      });
-
-      socket.on("stop typing", (chatId) => {
-        socket.to(chatId).emit("stop typing", chatId);
-      });
-
-      // ── 5. MESSAGE SEEN
-      // Frontend: socket.emit("message seen", { chatId, userId })
-      socket.on("message seen", ({ chatId, userId }) => {
-        socket.to(chatId).emit("message seen", { chatId, userId });
-      });
-
-      // ── 6. DISCONNECT
       socket.on("disconnect", () => {
         onlineUsers.forEach((socketId, userId) => {
           if (socketId === socket.id) {
             onlineUsers.delete(userId);
-            console.log(`👤 User offline: ${userId}`);
           }
         });
+
         io.emit("online users", Array.from(onlineUsers.keys()));
-        console.log("❌ Socket disconnected:", socket.id);
       });
     });
 
@@ -122,7 +120,7 @@ const startServer = async () => {
       console.log(`✅ Server running on port ${PORT}`);
     });
   } catch (error) {
-    console.error("Server failed to start:", error.message);
+    console.error("Server failed:", error.message);
     process.exit(1);
   }
 };
