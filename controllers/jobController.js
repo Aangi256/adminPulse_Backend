@@ -1,33 +1,34 @@
-const jobService = require("../services/jobService");
+const {
+  createJobService,
+  getAllJobsService,
+  getJobByIdService,
+  updateJobService,
+} = require("../services/jobService");
 
 exports.createJob = async (req, res) => {
   try {
-    const job = await jobService.createJob(req.body, req.user);
+    const data = JSON.parse(req.body.data);
 
-    res.json(job);
+    const job = await createJobService(data, req.file);
 
+    res.status(201).json(job);
   } catch (err) {
-    console.error("CREATE JOB ERROR:", err);
-
-    res.status(500).json({
-      message: err.message,
-    });
+    res.status(500).json({ error: err.message });
   }
 };
 
-exports.updateStatus = async (req, res) => {
-  try {
-    const job = await jobService.updateJobStatus(
-      req.params.id,
-      req.user
-    );
-    res.json(job);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-exports.getJobs = async (req, res) => {
-  const jobs = await require("../models/Job").find();
+exports.getAllJobs = async (req, res) => {
+  const jobs = await getAllJobsService();
   res.json(jobs);
+};
+
+exports.getJobById = async (req, res) => {
+  const job = await getJobByIdService(req.params.id);
+  res.json(job);
+};
+
+exports.updateJob = async (req, res) => {
+  const data = JSON.parse(req.body.data);
+  const job = await updateJobService(req.params.id, data);
+  res.json(job);
 };

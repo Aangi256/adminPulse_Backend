@@ -1,22 +1,29 @@
-exports.createJob = async (data, user) => {
+const Job = require("../models/Job");
+const generateJobId = require("../utils/generateJobId");
+const createFolder = require("../utils/createFolder");
+const generatePDF = require("../utils/generatePDF");
 
-  if (!user) {
-    throw new Error("User not authenticated");
-  }
+exports.createJobService = async (data, file) => {
+  const jobId = generateJobId();
 
-  const jobId = "JOB-" + Date.now();
+  // create folder
+  createFolder(jobId);
 
   const job = await Job.create({
-    ...data,
     jobId,
-
-    history: [
-      {
-        status: "DESIGN",
-        updatedBy: user._id,
-      },
-    ],
+    ...data,
+    fileUrl: file?.path,
   });
+
+  // generate pdf (optional)
+  await generatePDF(job);
 
   return job;
 };
+
+exports.getAllJobsService = () => Job.find().sort({ createdAt: -1 });
+
+exports.getJobByIdService = (id) => Job.findById(id);
+
+exports.updateJobService = (id, data) =>
+  Job.findByIdAndUpdate(id, data, { new: true });

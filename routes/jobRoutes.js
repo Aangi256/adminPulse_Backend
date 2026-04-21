@@ -1,14 +1,17 @@
 const express = require("express");
 const router = express.Router();
+const upload = require("../middleware/uploadMiddleware");
 
 const {
   createJob,
-  updateStatus,
-  getJobs,
+  getAllJobs,
+  getJobById,
+  updateJob,
 } = require("../controllers/jobController");
 
-router.post("/", createJob);
-router.get("/", getJobs);
-router.put("/:id/status", updateStatus);
+router.post("/create", upload.single("file"), createJob);
+router.get("/", getAllJobs);
+router.get("/:id", getJobById);
+router.put("/:id", upload.single("file"), updateJob);
 
 module.exports = router;

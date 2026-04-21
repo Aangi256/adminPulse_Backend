@@ -13,6 +13,12 @@ const notificationSchema = new mongoose.Schema(
       type: String,
       default: "/default-user.png",
     },
+
+    jobId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Job",
+    },
+    
   },
   { timestamps: true }
 );
