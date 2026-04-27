@@ -10,8 +10,8 @@ exports.createJobService = async (data, file) => {
   createFolder(jobId);
 
   const job = await Job.create({
-    jobId,
     ...data,
+    jobId,
     fileUrl: file?.path,
   });
 
@@ -27,3 +27,5 @@ exports.getJobByIdService = (id) => Job.findById(id);
 
 exports.updateJobService = (id, data) =>
   Job.findByIdAndUpdate(id, data, { new: true });
+
+exports.deleteJobService = (id) => Job.findByIdAndDelete(id);
