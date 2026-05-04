@@ -1,8 +1,20 @@
 const Notification = require("../models/Notification");
 
-// ✅ GET only unread notifications (so dismissed ones never come back)
+// ✅ GET only unread notifications for the logged-in user
 const getNotifications = async (req, res) => {
-  const notifications = await Notification.find({ read: false }).sort({ createdAt: -1 });
+  // userId is passed as query param: /api/notifications?userId=xxx
+  const { userId } = req.query;
+
+  const filter = { read: false };
+  if (userId) {
+    // Return notifications where recipientId matches OR recipientId is null (broadcast)
+    filter.$or = [
+      { recipientId: userId },
+      { recipientId: null, type: { $ne: "job" } }, // null-recipient chat notifs are ok
+    ];
+  }
+
+  const notifications = await Notification.find(filter).sort({ createdAt: -1 });
   res.json(notifications);
 };
 

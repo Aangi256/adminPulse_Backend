@@ -52,6 +52,9 @@ const startServer = async () => {
       },
     });
 
+    // ✅ Make io accessible in controllers via req.app.get("io")
+    app.set("io", io);
+
     const onlineUsers = new Map();
 
     io.on("connection", (socket) => {

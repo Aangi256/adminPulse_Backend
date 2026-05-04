@@ -180,7 +180,8 @@ exports.assignJob = async (req, res) => {
       {
         $set: { 
           assignedTo: userId,
-          employeeStatus: "Assigned" 
+          employeeStatus: "Assigned",
+          status: "ASSIGNED"
         },
         $push: {
           assignmentHistory: {
@@ -273,14 +274,38 @@ exports.updateEmployeeStatus = async (req, res) => {
       return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
     }
 
+    const updates = { employeeStatus };
+    
+    // ✅ Sync main status with employee progress
+    if (employeeStatus === "Working in Progress") {
+      updates.status = "WORKING_IN_PROGRESS";
+    } else if (employeeStatus === "Completed") {
+      updates.status = "COMPLETED";
+    } else if (employeeStatus === "Assigned") {
+      updates.status = "ASSIGNED";
+    } else if (employeeStatus === "Draft") {
+      updates.status = "DRAFT";
+    }
+
     const job = await Job.findByIdAndUpdate(
       id,
-      { $set: { employeeStatus } },
+      { $set: updates },
       { new: true }
     );
 
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
+    }
+
+    // ✅ Emit real-time update to all clients so admin dashboard + job list refresh instantly
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("employee_status_updated", {
+        jobId: job._id,
+        employeeStatus,
+        jobName: job.jobDetail?.jobName,
+        jobCode: job.jobId,
+      });
     }
 
     return res.status(200).json({ message: "Employee status updated successfully", job });

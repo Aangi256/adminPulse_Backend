@@ -14,6 +14,13 @@ const notificationSchema = new mongoose.Schema(
       default: "/default-user.png",
     },
 
+    // ✅ Who should receive this notification (employee userId)
+    recipientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
     // Reference to a job (for job notifications)
     jobId: {
       type: mongoose.Schema.Types.ObjectId,
