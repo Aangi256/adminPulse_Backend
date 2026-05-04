@@ -50,9 +50,35 @@ const jobSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["DESIGN", "QC", "PRODUCTION", "DISPATCH"],
-      default: "DESIGN",
+      enum: ["DRAFT", "DESIGN", "QC", "PRODUCTION", "DISPATCH"],
+      default: "DRAFT",
     },
+
+    // ✅ NEW: Track which user is assigned to this job
+    assignedTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    // ✅ NEW: Track employee's work progress
+    employeeStatus: {
+      type: String,
+      enum: ["Assigned", "Draft", "Working in Progress", "Completed"],
+      default: "Assigned",
+    },
+
+    // ✅ NEW: Track assignment history
+    assignmentHistory: [
+      {
+        user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        jobRole: {
+          type: String,
+          enum: ["design", "QC", "production", "dispatch"],
+        },
+        assignedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

@@ -88,16 +88,27 @@ const startServer = async () => {
           socket.to(uid).emit("message received", newMessage);
 
           try {
-            // ✅ Save notification
+            // ✅ Save notification — use correct populated field names
+            const senderName  = newMessage.sender?.fullName || "Someone";
+            const senderImage = newMessage.sender?.image
+              ? `http://localhost:5000/${newMessage.sender.image}`
+              : "/default-user.png";
+
+            // Truncate long messages for the notification preview
+            const preview = newMessage.content?.length > 60
+              ? newMessage.content.substring(0, 60) + "…"
+              : newMessage.content;
+
             const notif = await Notification.create({
-              user: newMessage.sender?.name || "User",
-              message: newMessage.content,
+              user:    senderName,
+              message: `sent you a message: "${preview}"`,
               project: "Chat Message",
-              type: "chat",
-              image: newMessage.sender?.avatar || "/default-user.png",
+              type:    "chat",
+              image:   senderImage,
+              chatId:  newMessage.chat?._id || newMessage.chat,   // ✅ needed for redirect
             });
 
-            // ✅ Emit notification
+            // ✅ Emit notification to recipient
             socket.to(uid).emit("new notification", notif);
           } catch (err) {
             console.error("Notification error:", err.message);

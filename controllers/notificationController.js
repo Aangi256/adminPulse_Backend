@@ -1,8 +1,8 @@
 const Notification = require("../models/Notification");
 
-// ✅ GET notifications
+// ✅ GET only unread notifications (so dismissed ones never come back)
 const getNotifications = async (req, res) => {
-  const notifications = await Notification.find().sort({ createdAt: -1 });
+  const notifications = await Notification.find({ read: false }).sort({ createdAt: -1 });
   res.json(notifications);
 };
 
