@@ -269,16 +269,36 @@ exports.updateEmployeeStatus = async (req, res) => {
     const { id } = req.params;
     const { employeeStatus } = req.body;
 
-    const validStatuses = ["Assigned", "Draft", "Working in Progress", "Completed"];
+    const validStatuses = ["Assigned", "Draft", "Working in Progress", "Pending QC", "Completed"];
     if (!validStatuses.includes(employeeStatus)) {
       return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
     }
 
     const updates = { employeeStatus };
+    let qcUser = null;
+    let pushCommand = null;
     
     // ✅ Sync main status with employee progress
     if (employeeStatus === "Working in Progress") {
       updates.status = "WORKING_IN_PROGRESS";
+    } else if (employeeStatus === "Pending QC") {
+      updates.status = "PENDING_QC";
+      
+      // 🔄 Auto-assign to QC user
+      const allUsers = await User.find({ status: "active" }).populate("role", "name");
+      qcUser = allUsers.find(u => u.role?.name?.toLowerCase() === "qc");
+      
+      if (qcUser) {
+        updates.assignedTo = qcUser._id;
+        pushCommand = {
+          assignmentHistory: {
+            user: qcUser._id,
+            jobRole: "QC",
+            assignedAt: new Date()
+          }
+        };
+      }
+      
     } else if (employeeStatus === "Completed") {
       updates.status = "COMPLETED";
     } else if (employeeStatus === "Assigned") {
@@ -287,14 +307,79 @@ exports.updateEmployeeStatus = async (req, res) => {
       updates.status = "DRAFT";
     }
 
+    const updateQuery = { $set: updates };
+    if (pushCommand) {
+      updateQuery.$push = pushCommand;
+    }
+
     const job = await Job.findByIdAndUpdate(
       id,
-      { $set: updates },
+      updateQuery,
       { new: true }
     );
 
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
+    }
+
+    // ✅ Notify Admins and QC User when job is ready for QC or Completed
+    if (employeeStatus === "Pending QC" || employeeStatus === "Completed") {
+      try {
+        const adminUsers = await User.find({ status: "active" }).populate("role", "name");
+        const admins = adminUsers.filter((u) => u.role?.name?.toLowerCase() === "admin");
+
+        const peopleToNotify = [...admins];
+        if (employeeStatus === "Pending QC" && qcUser) {
+          peopleToNotify.push(qcUser);
+        }
+
+        const notifiedEmails = new Set();
+
+        for (const person of peopleToNotify) {
+          if (notifiedEmails.has(person.email)) continue;
+          notifiedEmails.add(person.email);
+
+          const isQC = qcUser && person._id.toString() === qcUser._id.toString();
+
+          // Send Email
+          await sendEmail({
+            email: person.email,
+            subject: employeeStatus === "Pending QC" 
+              ? (isQC ? `Job Assigned for QC: ${job.jobDetail?.jobName || job.jobId}` : `Job Ready for QC: ${job.jobDetail?.jobName || job.jobId}`)
+              : `Job Completed: ${job.jobDetail?.jobName || job.jobId}`,
+            message: `Hello ${person.fullName},
+
+A job has been updated to "${employeeStatus}".
+
+  Job ID    : ${job.jobId}
+  Job Name  : ${job.jobDetail?.jobName || "N/A"}
+  Customer  : ${job.jobDetail?.customerName || "N/A"}
+
+${employeeStatus === "Pending QC" 
+  ? (isQC ? "You have been automatically assigned to check this job." : "The job has been automatically assigned to the QC department.") 
+  : "The job has been completed."}
+
+Please log in to the AdminPulse system for more details.
+
+Thank you,
+AdminPulse Team`,
+          }).catch((err) => console.error("⚠️ Email failed:", err.message));
+
+          // In-App Notification
+          await Notification.create({
+            user: "AdminPulse",
+            message: employeeStatus === "Pending QC" && isQC 
+              ? `assigned you to job "${job.jobDetail?.jobName || job.jobId}" for QC.`
+              : `Job "${job.jobDetail?.jobName || job.jobId}" is now ${employeeStatus}.`,
+            project: "Job Status Update",
+            type: "job",
+            image: "/default-user.png",
+            jobId: job._id,
+          }).catch((err) => console.error("⚠️ Notification failed:", err.message));
+        }
+      } catch (notifyErr) {
+        console.error("⚠️ Failed to notify users:", notifyErr.message);
+      }
     }
 
     // ✅ Emit real-time update to all clients so admin dashboard + job list refresh instantly

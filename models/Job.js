@@ -64,7 +64,7 @@ const jobSchema = new mongoose.Schema(
     // ✅ NEW: Track employee's work progress
     employeeStatus: {
       type: String,
-      enum: ["Assigned", "Draft", "Working in Progress", "Completed"],
+      enum: ["Assigned", "Draft", "Working in Progress", "Pending QC", "Completed"],
       default: "Assigned",
     },
 
