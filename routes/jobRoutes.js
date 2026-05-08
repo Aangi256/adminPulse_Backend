@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const upload = require("../middleware/uploadMiddleware");
+const { protect } = require("../middleware/authMiddleware");
 
 const {
   createJob,
@@ -11,6 +12,7 @@ const {
   assignJob,          // ✅ NEW
   getNonAdminUsers,   // ✅ NEW
   updateEmployeeStatus,
+  updateComment,      // ✅ NEW: comment endpoint
 } = require("../controllers/jobController");
 
 // ─────────────────────────────────────────────────────────────────
@@ -19,21 +21,24 @@ const {
 // ─────────────────────────────────────────────────────────────────
 
 // ✅ Static routes first
-router.post("/create", upload.single("file"), createJob);
-router.get("/", getAllJobs);
+router.post("/create", protect, upload.single("file"), createJob);
+router.get("/", protect, getAllJobs);
 
 // ✅ NEW: non-admin users — MUST be before GET /:id
-router.get("/assign/users", getNonAdminUsers);
+router.get("/assign/users", protect, getNonAdminUsers);
 
 // ✅ Dynamic :id routes after
-router.get("/:id", getJobById);
-router.put("/:id", upload.single("file"), updateJob);
-router.delete("/:id", deleteJob);
+router.get("/:id", protect, getJobById);
+router.put("/:id", protect, upload.single("file"), updateJob);
+router.delete("/:id", protect, deleteJob);
 
 // ✅ NEW: assign a job to a user
-router.post("/:id/assign", assignJob);
+router.post("/:id/assign", protect, assignJob);
 
 // ✅ NEW: update employee status
-router.put("/:id/employee-status", updateEmployeeStatus);
+router.put("/:id/employee-status", protect, updateEmployeeStatus);
+
+// ✅ NEW: update comment
+router.put("/:id/comment", protect, updateComment);
 
 module.exports = router;

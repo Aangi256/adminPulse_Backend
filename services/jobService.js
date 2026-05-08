@@ -21,7 +21,7 @@ exports.createJobService = async (data, file) => {
   return job;
 };
 
-exports.getAllJobsService = () => Job.find().sort({ createdAt: -1 });
+exports.getAllJobsService = (filter = {}) => Job.find(filter).populate("assignedTo", "fullName").sort({ createdAt: -1 });
 
 exports.getJobByIdService = (id) => Job.findById(id);
 

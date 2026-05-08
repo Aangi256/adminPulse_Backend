@@ -60,9 +60,15 @@ exports.createJob = async (req, res) => {
     ) {
       data.technicalDetails.oldRefDate = null;
     }
+    
+    // ✅ Filter out empty color rows
+    if (data.colorDetails) {
+      data.colorDetails = data.colorDetails.filter(c => c.color && c.color.trim() !== "");
+    }
 
-    // ✅ Strip any status sent from the frontend — new jobs always start at DESIGN
-    delete data.status;
+    // ✅ Explicitly set new jobs to DRAFT status
+    data.status = "DRAFT";
+    data.employeeStatus = "Draft";
 
     const newJob = await createJobService(data, req.file);
 
@@ -79,8 +85,25 @@ exports.createJob = async (req, res) => {
 
 exports.getAllJobs = async (req, res) => {
   try {
-    const jobs = await getAllJobsService();
-    return res.json(jobs);
+    let filter = {};
+
+    // If not admin, only show jobs assigned to this user
+    if (req.user?.role?.name?.toLowerCase() !== "admin") {
+      filter = { assignedTo: req.user._id };
+    }
+
+    const jobs = await getAllJobsService(filter);
+
+    // ✅ SELF-HEAL: If any job is unassigned but has ASSIGNED status, fix it in the response
+    const sanitizedJobs = jobs.map(job => {
+      if (!job.assignedTo && (job.status === "ASSIGNED" || job.employeeStatus === "Assigned")) {
+        job.status = "DRAFT";
+        job.employeeStatus = "Draft";
+      }
+      return job;
+    });
+
+    return res.json(sanitizedJobs);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -114,6 +137,11 @@ exports.updateJob = async (req, res) => {
     // Clean up internal frontend field before saving
     delete data.removeExistingFile;
 
+    // ✅ Filter out empty color rows
+    if (data.colorDetails) {
+      data.colorDetails = data.colorDetails.filter(c => c.color && c.color.trim() !== "");
+    }
+
     const job = await updateJobService(req.params.id, data);
     if (!job) return res.status(404).json({ message: "Job not found" });
     return res.json(job);
@@ -138,21 +166,19 @@ exports.deleteJob = async (req, res) => {
 exports.assignJob = async (req, res) => {
   try {
     const { id } = req.params; // job ID
-    const { userId, jobRole } = req.body;
+    let { userId, jobRole } = req.body;
+    const adminId = req.user._id;
 
-    // Validate required fields
-    if (!userId || !jobRole) {
-      return res
-        .status(400)
-        .json({ message: "userId and jobRole are required" });
+    // Default to "design" if no role is provided
+    if (!jobRole) {
+      jobRole = "design";
     }
 
-    // Validate jobRole value
-    const validRoles = ["design", "QC", "production", "dispatch"];
-    if (!validRoles.includes(jobRole)) {
-      return res.status(400).json({
-        message: `jobRole must be one of: ${validRoles.join(", ")}`,
-      });
+    // Validate required fields
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ message: "userId is required" });
     }
 
     // Find the job
@@ -161,16 +187,17 @@ exports.assignJob = async (req, res) => {
       return res.status(404).json({ message: "Job not found" });
     }
 
-    // Find the user and confirm they are NOT admin
+    // Find the user (employee)
     const user = await User.findById(userId).populate("role", "name");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (user.role?.name?.toLowerCase() === "admin") {
-      return res
-        .status(400)
-        .json({ message: "Cannot assign a job to an admin user" });
+    // Find the admin (the person assigning) to get their image
+    let adminImage = "/default-user.png";
+    const admin = await User.findById(adminId);
+    if (admin && admin.image) {
+      adminImage = admin.image;
     }
 
     // Use findByIdAndUpdate with $set/$push so this works even if
@@ -207,7 +234,7 @@ You have been assigned to the following job:
   Job Name  : ${job.jobDetail?.jobName || "N/A"}
   Customer  : ${job.jobDetail?.customerName || "N/A"}
   PO Number : ${job.jobDetail?.poNumber || "N/A"}
-  Your Role : ${jobRole.toUpperCase()}
+${jobRole ? `  Your Role : ${jobRole.toUpperCase()}` : ""}
 
 Please log in to the AdminPulse system to view the full job details and begin your work.
 
@@ -219,19 +246,43 @@ AdminPulse Team`,
       console.error("⚠️  Email send failed:", emailErr.message);
     }
 
-    // ✅ Create in-app notification for the assigned user
+    // ✅ Create in-app notification
     try {
-      await Notification.create({
+      // Format the admin image path correctly
+      let finalAdminImage = "/images/user/user-01.jpg";
+      if (adminImage && adminImage !== "/default-user.png") {
+        finalAdminImage = adminImage.startsWith("http") 
+          ? adminImage 
+          : `http://localhost:5000/${adminImage.replace(/\\/g, "/")}`;
+      }
+
+      console.log("🔔 Creating notification for employee:", userId);
+      const notif = await Notification.create({
         user:    "AdminPulse",
-        message: `assigned you to job "${job.jobDetail?.jobName || job.jobId}" as ${jobRole.toUpperCase()}`,
+        message: `assigned ${user.fullName} to job "${job.jobDetail?.jobName || job.jobId}"${jobRole ? ` as ${jobRole.toUpperCase()}` : ""}`,
         project: "Job Assignment",
         type:    "job",
-        image:   "/default-user.png",
+        image:   finalAdminImage,
         jobId:   job._id,
+        recipientId: userId, // ✅ Targeted to employee
       });
-      // Note: Socket emit for job notifications can be added here when io is available
+      console.log("✅ Notification created:", notif._id);
+
+      // ✅ Emit real-time notification via Socket.io
+      const io = req.app.get("io");
+      if (io) {
+        console.log(`📡 Job Assignment: Notifying employee ${user.fullName} (${userId})`);
+        // 1. Send to the employee specifically
+        io.to(userId.toString()).emit("new notification", notif);
+
+        // 2. Also broadcast to others so admin sees it too
+        console.log("📡 Broadcasting job assignment to all connected users");
+        io.emit("new notification", notif); 
+      } else {
+        console.warn("⚠️ Socket.io (io) instance not found on req.app");
+      }
     } catch (notifErr) {
-      console.error("⚠️  Job notification create failed:", notifErr.message);
+      console.error("🔥 Job notification creation/emission failed:", notifErr);
     }
 
     return res.status(200).json({
@@ -269,7 +320,7 @@ exports.updateEmployeeStatus = async (req, res) => {
     const { id } = req.params;
     const { employeeStatus } = req.body;
 
-    const validStatuses = ["Assigned", "Draft", "Working in Progress", "Pending QC", "Completed"];
+    const validStatuses = ["Assigned", "Draft", "Working in Progress", "Pending QC", "QC", "Completed"];
     if (!validStatuses.includes(employeeStatus)) {
       return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
     }
@@ -281,8 +332,8 @@ exports.updateEmployeeStatus = async (req, res) => {
     // ✅ Sync main status with employee progress
     if (employeeStatus === "Working in Progress") {
       updates.status = "WORKING_IN_PROGRESS";
-    } else if (employeeStatus === "Pending QC") {
-      updates.status = "PENDING_QC";
+    } else if (employeeStatus === "Pending QC" || employeeStatus === "QC") {
+      updates.status = "QC";
       
       // 🔄 Auto-assign to QC user
       const allUsers = await User.find({ status: "active" }).populate("role", "name");
@@ -315,23 +366,23 @@ exports.updateEmployeeStatus = async (req, res) => {
     const job = await Job.findByIdAndUpdate(
       id,
       updateQuery,
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
     }
 
-    // ✅ Notify Admins and QC User when job is ready for QC or Completed
-    if (employeeStatus === "Pending QC" || employeeStatus === "Completed") {
-      try {
-        const adminUsers = await User.find({ status: "active" }).populate("role", "name");
-        const admins = adminUsers.filter((u) => u.role?.name?.toLowerCase() === "admin");
+    // ✅ Notify Admins when any status is updated
+    try {
+      const adminUsers = await User.find({ status: "active" }).populate("role", "name");
+      const admins = adminUsers.filter((u) => u.role?.name?.toLowerCase() === "admin");
 
-        const peopleToNotify = [...admins];
-        if (employeeStatus === "Pending QC" && qcUser) {
-          peopleToNotify.push(qcUser);
-        }
+      const peopleToNotify = [...admins];
+      // Also notify the QC user if it's pending QC and they were just assigned
+      if (employeeStatus === "Pending QC" && qcUser) {
+        peopleToNotify.push(qcUser);
+      }
 
         const notifiedEmails = new Set();
 
@@ -366,21 +417,29 @@ AdminPulse Team`,
           }).catch((err) => console.error("⚠️ Email failed:", err.message));
 
           // In-App Notification
-          await Notification.create({
+          const notif = await Notification.create({
             user: "AdminPulse",
             message: employeeStatus === "Pending QC" && isQC 
               ? `assigned you to job "${job.jobDetail?.jobName || job.jobId}" for QC.`
               : `Job "${job.jobDetail?.jobName || job.jobId}" is now ${employeeStatus}.`,
             project: "Job Status Update",
             type: "job",
-            image: "/default-user.png",
+            image: "/images/user/user-01.jpg", // Use a consistent default image
             jobId: job._id,
+            recipientId: person._id, // ✅ Targeted to each recipient
           }).catch((err) => console.error("⚠️ Notification failed:", err.message));
+
+          // ✅ Emit real-time notification via Socket.io
+          const io = req.app.get("io");
+          if (io && notif) {
+            console.log(`📡 Status update: ${employeeStatus}. Notifying ${person.fullName} (${person._id})`);
+            // Target the specific user's room
+            io.to(person._id.toString()).emit("new notification", notif);
+          }
         }
       } catch (notifyErr) {
         console.error("⚠️ Failed to notify users:", notifyErr.message);
       }
-    }
 
     // ✅ Emit real-time update to all clients so admin dashboard + job list refresh instantly
     const io = req.app.get("io");
@@ -394,6 +453,52 @@ AdminPulse Team`,
     }
 
     return res.status(200).json({ message: "Employee status updated successfully", job });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+// ✅ NEW: Update job comment (employee can add/edit comments visible to all)
+exports.updateComment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { comment } = req.body;
+
+    if (comment === undefined || comment === null) {
+      return res.status(400).json({ message: "comment field is required" });
+    }
+
+    const job = await Job.findByIdAndUpdate(
+      id,
+      { 
+        $push: { 
+          comments: { 
+            user: req.user._id, 
+            userName: req.user.fullName, 
+            text: comment.trim(),
+            createdAt: new Date()
+          } 
+        } 
+      },
+      { returnDocument: "after" }
+    );
+
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+    // Emit real-time update so admin dashboard refreshes instantly
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("job_comment_updated", {
+        jobId: job._id,
+        comments: job.comments, // Send whole array
+        jobName: job.jobDetail?.jobName,
+        jobCode: job.jobId,
+      });
+    }
+
+    return res.status(200).json({ message: "Comment updated successfully", job });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
