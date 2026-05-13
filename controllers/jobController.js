@@ -1,7 +1,9 @@
 const Job = require("../models/Job");
 const User = require("../models/User");
+const Customer = require("../models/Customer"); // ✅ NEW: Import Customer model
 const Notification = require("../models/Notification");
 const sendEmail = require("../utils/sendEmail");
+const { sendWhatsAppMessage } = require("../services/whatsappService"); // ✅ NEW: Import WhatsApp service
 const {
   createJobService,
   getAllJobsService,
@@ -71,6 +73,17 @@ exports.createJob = async (req, res) => {
     data.employeeStatus = "Draft";
 
     const newJob = await createJobService(data, req.file);
+
+    // ✅ NEW: Send WhatsApp notification to customer
+    try {
+      const customer = await Customer.findOne({ fullName: data.jobDetail.customerName });
+      if (customer && customer.phone) {
+        const msg = `Hello ${customer.fullName}, your job "${data.jobDetail.jobName}" has been created successfully. Job ID: ${newJob.jobId}. We will update you on the progress. - AdminPulse`;
+        sendWhatsAppMessage(customer.phone, msg);
+      }
+    } catch (waErr) {
+      console.error("⚠️ WhatsApp notification failed:", waErr.message);
+    }
 
     return res
       .status(201)
@@ -320,7 +333,7 @@ exports.updateEmployeeStatus = async (req, res) => {
     const { id } = req.params;
     const { employeeStatus } = req.body;
 
-    const validStatuses = ["Assigned", "Draft", "Working in Progress", "Pending QC", "QC", "Completed"];
+    const validStatuses = ["Design", "QC", "Production", "Account", "Dispatch", "Completed"];
     if (!validStatuses.includes(employeeStatus)) {
       return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
     }
@@ -329,13 +342,13 @@ exports.updateEmployeeStatus = async (req, res) => {
     let qcUser = null;
     let pushCommand = null;
     
-    // ✅ Sync main status with employee progress
-    if (employeeStatus === "Working in Progress") {
-      updates.status = "WORKING_IN_PROGRESS";
-    } else if (employeeStatus === "Pending QC" || employeeStatus === "QC") {
+    // ✅ Sync main status with flow stages
+    if (employeeStatus === "Design") {
+      updates.status = "DESIGN";
+    } else if (employeeStatus === "QC") {
       updates.status = "QC";
       
-      // 🔄 Auto-assign to QC user
+      // 🔄 Auto-assign to QC user if coming from Design
       const allUsers = await User.find({ status: "active" }).populate("role", "name");
       qcUser = allUsers.find(u => u.role?.name?.toLowerCase() === "qc");
       
@@ -349,13 +362,14 @@ exports.updateEmployeeStatus = async (req, res) => {
           }
         };
       }
-      
+    } else if (employeeStatus === "Production") {
+      updates.status = "PRODUCTION";
+    } else if (employeeStatus === "Account") {
+      updates.status = "ACCOUNT";
+    } else if (employeeStatus === "Dispatch") {
+      updates.status = "DISPATCH";
     } else if (employeeStatus === "Completed") {
       updates.status = "COMPLETED";
-    } else if (employeeStatus === "Assigned") {
-      updates.status = "ASSIGNED";
-    } else if (employeeStatus === "Draft") {
-      updates.status = "DRAFT";
     }
 
     const updateQuery = { $set: updates };
@@ -499,6 +513,79 @@ exports.updateComment = async (req, res) => {
     }
 
     return res.status(200).json({ message: "Comment updated successfully", job });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+// ✅ NEW: Get dashboard statistics
+exports.getJobStats = async (req, res) => {
+  try {
+    const totalJobs = await Job.countDocuments();
+    const completedJobs = await Job.countDocuments({ status: "COMPLETED" });
+    const holdJobs = await Job.countDocuments({ status: "HOLD" });
+    const draftJobs = await Job.countDocuments({ status: "DRAFT" });
+    
+    // Ongoing is everything that is assigned but not completed/hold/draft
+    const ongoingJobs = await Job.countDocuments({ 
+      status: { $in: ["DESIGN", "QC", "PRODUCTION", "ACCOUNT", "DISPATCH", "ASSIGNED", "WORKING_IN_PROGRESS", "PENDING_QC"] } 
+    });
+
+    // Weekly stats (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const weeklyJobs = await Job.countDocuments({ createdAt: { $gte: sevenDaysAgo } });
+
+    return res.status(200).json({
+      success: true,
+      stats: {
+        totalJobs,
+        ongoingJobs,
+        completedJobs,
+        holdJobs,
+        draftJobs,
+        weeklyJobs
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+// ✅ NEW: Get filtered reports
+exports.getJobReports = async (req, res) => {
+  try {
+    const { customerName, assignedTo, status, startDate, endDate, jobType } = req.query;
+    
+    let query = {};
+
+    if (customerName) {
+      query["jobDetail.customerName"] = { $regex: customerName, $options: "i" };
+    }
+    
+    if (assignedTo) {
+      query.assignedTo = assignedTo;
+    }
+    
+    if (status) {
+      query.status = status;
+    }
+    
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    const jobs = await Job.find(query)
+      .populate("assignedTo", "fullName email")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: jobs.length,
+      jobs
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

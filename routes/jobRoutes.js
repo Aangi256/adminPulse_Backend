@@ -13,6 +13,8 @@ const {
   getNonAdminUsers,   // ✅ NEW
   updateEmployeeStatus,
   updateComment,      // ✅ NEW: comment endpoint
+  getJobStats,        // ✅ NEW: stats endpoint
+  getJobReports,      // ✅ NEW: reports endpoint
 } = require("../controllers/jobController");
 
 // ─────────────────────────────────────────────────────────────────
@@ -26,6 +28,8 @@ router.get("/", protect, getAllJobs);
 
 // ✅ NEW: non-admin users — MUST be before GET /:id
 router.get("/assign/users", protect, getNonAdminUsers);
+router.get("/stats", protect, getJobStats); // ✅ NEW: stats route
+router.get("/reports", protect, getJobReports); // ✅ NEW: reports route
 
 // ✅ Dynamic :id routes after
 router.get("/:id", protect, getJobById);
