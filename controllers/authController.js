@@ -14,6 +14,10 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ message: "Invalid Email" });
     }
 
+    if (user.status && user.status.toLowerCase() === "inactive") {
+      return res.status(403).json({ message: "Your account is inactive. Please contact the administrator." });
+    }
+
     const isMatch = await user.matchPassword(password);
 
     if (!isMatch) {
@@ -54,6 +58,10 @@ exports.forgotPassword = async (req, res) => {
       return res.status(404).json({
         message: "User with this email does not exist"
       });
+    }
+
+    if (user.status && user.status.toLowerCase() === "inactive") {
+      return res.status(403).json({ message: "Your account is inactive. Please contact the administrator." });
     }
 
     const resetToken = crypto.randomBytes(32).toString("hex");

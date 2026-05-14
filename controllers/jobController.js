@@ -523,10 +523,9 @@ exports.getJobStats = async (req, res) => {
   try {
     const totalJobs = await Job.countDocuments();
     const completedJobs = await Job.countDocuments({ status: "COMPLETED" });
-    const holdJobs = await Job.countDocuments({ status: "HOLD" });
     const draftJobs = await Job.countDocuments({ status: "DRAFT" });
     
-    // Ongoing is everything that is assigned but not completed/hold/draft
+    // Ongoing is everything that is assigned but not completed or draft
     const ongoingJobs = await Job.countDocuments({ 
       status: { $in: ["DESIGN", "QC", "PRODUCTION", "ACCOUNT", "DISPATCH", "ASSIGNED", "WORKING_IN_PROGRESS", "PENDING_QC"] } 
     });
@@ -542,7 +541,6 @@ exports.getJobStats = async (req, res) => {
         totalJobs,
         ongoingJobs,
         completedJobs,
-        holdJobs,
         draftJobs,
         weeklyJobs
       }
